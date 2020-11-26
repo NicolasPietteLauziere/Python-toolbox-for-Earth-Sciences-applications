@@ -1,0 +1,168 @@
+import os
+import cv2
+import numpy as np
+from matplotlib import pyplot as plt
+from scipy import ndimage
+from skimage import measure, color, io
+from skimage.segmentation import clear_border
+import pandas as pd
+import time
+import logging
+import progressbar
+import matplotlib.lines as mlines
+from skimage import measure, color, io
+from scipy import ndimage
+#-----------------------------------------------------------------------------
+#Image analysis
+#-----------------------------------------------------------------------------
+def ACF(img):
+    # Determine the size of the image
+    n = size(img, 0)
+    m = size(img, 1)
+
+    # Divide by the size for normalization
+    #f = np.fft.ifft2(np.fft.fft2(img)*conj(np.fft.fft2(img)))
+    #f_shift = abs(np.fft.fftshift(f))/(n*m)
+    f_shift=abs(fftshift(ifft2(fft2(img)*np.conjugate(fft2(img)))))/(n*m);
+       
+    return f_shift
+
+def ACF_threshold(ACF, thres):
+    #Rescale to 100%
+    fmax = np.amax(ACF)
+    fmin = np.amin(ACF)
+    f100 = (ACF-fmin)/(fmax-fmin)*100
+    #Threshold to custom value in % - typical is 39%
+    (thresh, Mask) = cv2.threshold(f100,thres, 100, cv2.THRESH_BINARY)
+    #plt.imshow(Mask, cmap = 'gray')
+    #ipath=os.path.join(outpath+"\\"+specimen+"thresholdACF39.png")
+    #cv2.imwrite(ipath, Mask)
+    
+    mask = Mask == 100 #Sets TRUE for all 255 valued pixels and FALSE for 0
+    #check the connectivity within the mask to see if more than one region has been thresholded
+    # 4 connectivity would be [[0,1,0],[1,1,1],[0,1,0]]
+    s = [[1,1,1],[1,1,1],[1,1,1]]
+    
+    labeled_mask, num_labels = ndimage.label(mask, structure=s)
+
+    # measure parameters of objects
+    clusters = measure.regionprops(labeled_mask, mask)  #send in original image for Intensity measurements
+
+    return (clusters, mask)
+
+def ACF_shapeCalc(regions, pixels_to_um):
+    #create empty arrays
+    Areas = []
+    Equivalent_diameter = []
+    Orientations = []
+    MajorAxisLength = []
+    MinorAxisLength = []
+    
+    for region_props in regions:
+        Areas.append(region_props['Area']*pixels_to_um**2)              #Convert pixel square to um square
+        Equivalent_diameter.append(region_props['equivalent_diameter']*pixels_to_um)
+        Orientations.append(math.degrees(region_props['orientation']))  #Convert to degrees from radians
+        MajorAxisLength.append(region_props['MajorAxisLength']*pixels_to_um)
+        MinorAxisLength.append(region_props['MinorAxisLength']*pixels_to_um)  
+    df = pd.DataFrame()
+    df['Area']=Areas
+    df['EqDiameter']=Equivalent_diameter
+    df['Orientation']=Orientations
+    df['MA_Length']=MajorAxisLength
+    df['ma_Length']=MinorAxisLength
+    
+    return df
+
+def grain_segmentation(img):
+    
+    IMG= cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+
+    kernel = np.ones((2,2),np.uint8) 
+    IMG = cv2.erode(IMG,kernel,iterations = 1)
+
+
+    mask = IMG == 255 #Sets TRUE for all 255 valued pixels and FALSE for 0
+
+    print(mask)   #Just to confirm the image is not inverted. 
+#
+
+    mask = clear_border(mask)   #Removes edge touching grains. 
+#Step 4: Label grains in the masked image
+#Now we have well separated grains and background. Each grain is like an object.
+#The scipy ndimage package has a function 'label' that will number each object with a unique ID.
+
+#The 'structure' parameter defines the connectivity for the labeling. 
+#This specifies when to consider a pixel to be connected to another nearby pixel, 
+#i.e. to be part of the same object.
+
+#use 8-connectivity, diagonal pixels will be included as part of a structure
+#this is ImageJ default but we have to specify this for Python, or 4-connectivity will be used
+# 4 connectivity would be [[0,1,0],[1,1,1],[0,1,0]]
+    s = [[1,1,1],[1,1,1],[1,1,1]]
+#label_im, nb_labels = ndimage.label(mask)
+    labeled_mask, num_labels = ndimage.label(mask, structure=s)
+
+#The function outputs a new image that contains a different integer label 
+#for each object, and also the number of objects found.
+
+
+#Let's color the labels to see the effect
+    img2 = color.label2rgb(labeled_mask, bg_label=0)
+
+    #plt.subplot(3,1,1),plt.imshow(imgC)
+    #plt.subplot(3,1,2),plt.imshow(IMG)
+    #plt.subplot(3,1,3),plt.imshow(img2)
+    #plt.show()
+#
+#View just by making mask=threshold and also mask = dilation (after morph operations)
+#Some grains are well separated after morph operations
+
+#Now each object had a unique number in the image. 
+#Total number of labels found are...
+#print(num_labels) 
+
+#Step 5: Measure the properties of each grain (object)
+
+# regionprops function in skimage measure module calculates useful parameters for each object.
+
+    clusters = measure.regionprops(labeled_mask, img)  #send in original image for Intensity measurements
+
+
+    return (clusters, img2)
+
+def grain_calculation(clusters, pixels_to_um):
+    #create empty arrays
+    GrainID = []
+    Areas = []
+    Equivalent_diameter = []
+    Orientations = []
+    Intensity = []
+    MajorAxisLength = []
+    MinorAxisLength = []
+    MinIntensity = []
+    MeanIntensity = []
+    MaxIntensity = []
+    i=0
+    with progressbar.ProgressBar(len(regions)) as bar: #Create a progress bar
+        for region_props in regions:
+            i=i+1
+            Areas.append(region_props['Area']*pixels_to_um**2)              #Convert pixel square to um square
+            Equivalent_diameter.append(region_props['equivalent_diameter']*pixels_to_um)
+            Orientations.append(math.degrees(region_props['orientation']))  #Convert to degrees from radians
+            MajorAxisLength.append(region_props['MajorAxisLength']*pixels_to_um)
+            MinorAxisLength.append(region_props['MinorAxisLength']*pixels_to_um)
+            MinIntensity.append(region_props['MinIntensity'])
+            MeanIntensity.append(region_props['MeanIntensity'])
+            MaxIntensity.append(region_props['MaxIntensity'])
+            bar.update(i)                    # call after consuming one item
+    df = pd.DataFrame()
+    df['Area']=pd.Series(Areas)
+    df['Eq_diameter']=pd.Series(Equivalent_diameter)
+    df['Orientation']=pd.Series(Orientations)
+    df['MA_Length']=pd.Series(MajorAxisLength)
+    df['ma_Length']=pd.Series(MinorAxisLength)
+    df['MinIntensity']=pd.Series(MinIntensity)
+    df['MeanIntensity']=pd.Series(MeanIntensity)
+    df['MaxIntensity']=pd.Series(MaxIntensity)
+    
+    return df
