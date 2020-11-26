@@ -1,0 +1,243 @@
+import os
+import plotly.express as px
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.stats.mstats import gmean
+import numpy as np
+import matplotlib.lines as mlines
+import matplotlib.patches as patches
+from sklearn.linear_model import LinearRegression
+#-----------------------------------------------------------------------------
+#Whole rock chemistry
+#-----------------------------------------------------------------------------
+def weigth2molar(df):
+    """
+    Calculate whole rock molar % from oxide wt%. 
+    Imput must be a dataframe structured like: df.Al2O3, df.FeO, df.K2O etc.
+    with a column named df.Specimen to identify the data
+    
+    Output is a new dataframe structured like: df.Al, df. Fe, df.K
+    If both Fe2O3 and FeO are present, output is: df.FeII, df.FeIII
+    Additional columns are ignored.
+    """
+    wSi = 28.085
+    wTi = 47.867 
+    wAl = 26.982
+    wFe = 55.845
+    wMn = 54.938
+    wMg = 24.305
+    wCa = 40.078
+    wNa = 22.990
+    wK = 39.098
+    wP = 30.974
+    wO = 15.999
+    #Create a new dataframe called DF
+    DF = df.filter(items=['Specimen'])
+    DF['Si'] = 0.01*df.SiO2/(wSi+2*wO)
+    DF['Ti'] = 0.01*df.TiO2/(wTi+2*wO)
+    DF['Al'] = 0.01*df.Al2O3/(2*wAl+3*wO)
+    if 'FeO' in df.columns:
+        DF['Fe'] = 0.01*df.FeO/(wFe+wO)
+    elif 'Fe2O3' in df.columns:
+        DF['Fe'] = 0.01*df.Fe2O3/(2*wFe+3*wO)
+    elif 'Fe2O3' and 'FeO' in df.columns:
+        DF['FeIII'] = 0.01*df.Fe2O3/(2*wFe+3*wO)
+        DF['FeII'] = 0.01*df.FeO/(wFe+wO)
+    DF['Mn'] = 0.01*df.MnO/(wMn+wO)
+    DF['Mg'] = 0.01*df.MgO/(wMg+wO)
+    DF['Ca'] = 0.01*df.CaO/(wCa+wO)
+    DF['Na'] = 0.01*df.Na2O/(2*wNa+wO)
+    DF['K1'] = 0.01*df.K2O/(2*wK+wO)
+    DF['P1'] = 0.01*df.P2O5/(2*wP+5*wO)
+    
+    sum = DF.sum(axis=1)
+    
+    DF['Si'] = DF.Si/sum*100
+    DF['Ti'] = DF.Ti/sum*100
+    DF['Al'] = DF.Al/sum*100
+    DF['Fe'] = DF.Fe/sum*100
+    DF['Mn'] = DF.Mn/sum*100
+    DF['Mg'] = DF.Mg/sum*100
+    DF['Ca'] = DF.Ca/sum*100
+    DF['Na'] = DF.Na/sum*100
+    DF['K'] = DF.K1/sum*100
+    DF['P'] = DF.P1/sum*100
+    if 'Fe2O3' and 'FeO' in df.columns:
+        DF = DF.filter(items=['Si', 'Ti', 'Al', 'FeII','FeIII', 'Mn', 'Mg', 'Ca', 
+                          'Na', 'K', 'P'])
+    else:
+        DF = DF.filter(items=['Si', 'Ti', 'Al', 'Fe','Mn', 'Mg', 'Ca', 
+                          'Na', 'K', 'P'])
+    return(DF)
+
+def molar2weight(df, kwarg):
+    """
+    Calculate whole rock oxide weigth % from molar %. 
+    Imput must be a dataframe structured like: df.Al, df. Fe, df.K
+    If both Fe2O3 and FeO are present, input is: df.FeII, df.FeIII
+    kwarg="FeIII" or "FeII" or "both" to choose how Fe will be expressed in wt%
+    
+    Output is a new dataframe structured like: df.Al2O3, df.FeO, df.K2O etc.
+    If both Fe2O3 and FeO are present, output is: df.FeO, df.Fe2O3
+
+    Additional columns are ignored.
+    """
+    wSi = 28.085
+    wTi = 47.867 
+    wAl = 26.982
+    wFe = 55.845
+    wMn = 54.938
+    wMg = 24.305
+    wCa = 40.078
+    wNa = 22.990
+    wK = 39.098
+    wP = 30.974
+    wO = 15.999
+    DF = df.filter(items=['Specimen'])
+
+    DF['SiO2'] = 0.01*df.Si*(wSi+2*wO)
+    DF['TiO2'] = 0.01*df.Ti*(wTi+2*wO)
+    DF['Al2O3'] = 0.01*df.Al*(2*wAl+3*wO)
+    if 'FeII' in kwarg:
+        DF['FeO'] = 0.01*df.Fe*(wFe+wO)
+    elif 'FeIII' in kwarg:
+        DF['Fe2O3'] = 0.01*df.Fe*(2*wFe+3*wO)
+    elif 'both' in kwarg:
+        DF['Fe2O3'] = 0.01*df.FeIII*(2*wFe+3*wO)
+        DF['FeO'] = 0.01*df.FeII*(wFe+wO)
+    DF['MnO'] = 0.01*df.Mn*(wMn+wO)
+    DF['MgO'] = 0.01*df.Mg*(wMg+wO)
+    DF['CaO'] = 0.01*df.Ca*(wCa+wO)
+    DF['Na2O'] = 0.01*df.Na*(2*wNa+wO)
+    DF['K2O'] = 0.01*df.K*(2*wK+wO)
+    DF['P2O5'] = 0.01*df.P*(2*wP+5*wO)
+    
+    sum = DF.sum(axis=1)
+    
+    DF['SiO2'] = DF.SiO2/sum*100
+    DF['TiO2'] = DF.TiO2/sum*100
+    DF['Al2O3'] = DF.Al2O3/sum*100
+    if 'FeII' in kwarg:
+        DF['FeO'] = DF.FeO/sum*100
+    elif 'FeIII' in kwarg:
+        DF['Fe2O3'] = DF.Fe2O3/sum*100
+    elif 'both' in kwarg:
+        DF['Fe2O3'] = DF.Fe2O3/sum*100
+        DF['FeO'] = DF.FeO/sum*100
+    DF['MnO'] = DF.MnO/sum*100
+    DF['MgO'] = DF.MgO/sum*100
+    DF['CaO'] = DF.CaO/sum*100
+    DF['Na2O'] = DF.Na2O/sum*100
+    DF['K2O'] = DF.K2O/sum*100
+    DF['P2O5'] = DF.P2O5/sum*100
+    
+    return (DF)
+
+def massChange(dfProtolith, dfAltered, reference):
+    dfW = dfProtolith
+    df = dfAltered
+    gm = []
+    gm_a = []
+    for i in df.columns:
+        print(i)
+        gm.append(gmean(dfW[i]+0.001)-len(dfW[i])*0.001)   #Geometric mean corrected for nul values
+        gm_a.append(gmean(df[i]+0.001)-len(df[i])*0.001)    
+        
+    AML = gm / (sum(gm)*0.01)
+    AML_a = gm_a / (sum(gm_a)*0.01) 
+    
+    # #Build a dataframe with the AMLs
+    # aml = pd.DataFrame([AML, AML_a], 
+    #                    index = ['protolith','altered'], 
+    #                    columns = df.columns)
+    # rm = []
+    # for i in aml.columns:
+    #     rm.append(aml[i][0] / aml[i][1])
+    if len(reference) > 1:
+        composite= dfW[reference].sum(axis = 1)
+        composite_a = df[reference].sum(axis = 1)
+        
+        gmComp = gmean(composite+0.001)-len(composite)*0.001
+        gmComp_a = gmean(composite_a+0.001)-len(composite_a)*0.001
+        
+        amlComp = gmComp / (sum(gm)*0.01)
+        amlComp_a = gmComp_a / (sum(gm_a)*0.01)
+        
+        change = amlComp/amlComp_a
+    if len(reference) == 1:
+        stable = df.columns.tolist().index(reference)
+        change = AML[stable] / AML_a[stable]
+    
+    T=[]
+    for i in range(len(AML)):
+        # if i == stable:
+        #     T.append(0)
+        # else:
+        T.append(100*(change*AML_a[i] / AML[i] - 1))
+    
+    return(T)  
+
+def AI(df):
+    #Ishikawa alteration index
+    ai = 100*(df.K2O + df.MgO) / (df.K2O + df.MgO + df.Na2O + df.CaO)
+    return(ai)
+
+def CCPI(df):
+    #Chlorite-carbonate-pyrite index (CCPI )
+    if 'FeO' in df.columns:
+        ccpi = 100*(df.MgO + df.FeO) / (df.MgO + df.FeO + df.Na2O + df.K2O)
+    elif 'Fe2O3' in df.columns: 
+        ccpi = 100*(df.MgO + df.Fe2O3) / (df.MgO + df.Fe2O3 + df.Na2O + df.K2O)
+    elif 'Fe2O3' and 'FeO' in df.columns:
+        ccpi = 100*(df.MgO+ df.FeO + df.Fe2O3) / (df.MgO+ df.FeO + df.Fe2O3 + 
+                                                  df.Na2O + df.K2O)
+    return(ccpi)
+
+
+def isocon(dfProtolith, dfAltered, reference, alterationFacies, colors, ax1):
+    """
+    Isocon plot from Grant(1986) based on Greisen's alteration index
+    input:
+    dfProtolith: dataframe with chemical data of protoliths
+    dfAltered: dataframe with chemical data of altered specimens
+    reference: reference immobile elements e.g.: ['Al2O3', 'FeO']
+    alterationFacies: dataframe column with alteration indexes 
+                    e.g.: df.alteration
+                            1
+                            2
+    colors: dictionary with plot color for each alteration
+                   e.g.: {'1':'#34ebb1', '2':'#3480eb', '3':'#e8e002'}
+    ax1: reference axis to plot the isocon diagram
+
+    output: isocon plot
+    """
+    for txt in alterationFacies.unique():
+        x = dfProtolith[reference].mean() #Protolith
+        y = dfAltered[reference][alterationFacies==txt].mean() #Altered
+        col = colors[txt]
+        
+        x_m = dfProtolith.mean()
+        y_m = dfAltered[alterationFacies==txt].mean()
+        
+        #linear regression through the origin
+        #m, b = np.polyfit(x, y, 1)
+        A = np.vstack([x, np.ones(len(x))]).T
+        m, b = np.linalg.lstsq(A, y, rcond=None)[0]
+        
+        ax1.plot(x, m*x + b, c = col)
+        ax1.scatter(x, y, s=4, marker = "D",
+                    c='k') # 
+        
+        for i, txt in enumerate(df[reference].columns):
+            ax1.annotate(txt, (x[i], y[i]), fontsize = 10)
+        
+        for elmnt in df.columns[0:9]:
+            print(elmnt)
+            if elmnt not in reference:
+                ax1.scatter(x_m[elmnt], m*y_m[elmnt], s=6, c = col, marker = "o")
+                ax1.annotate(elmnt, (x_m[elmnt], m*y_m[elmnt]), fontsize = 10)
+        
+    
+    ax1.set_ylabel('Altered', fontsize = 12)
+    ax1.set_xlabel('Protolith', fontsize = 12) #, fontsize=18
+    return(LinearRegression)
