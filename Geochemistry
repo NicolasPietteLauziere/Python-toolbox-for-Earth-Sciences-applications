@@ -198,19 +198,19 @@ def isocon(dfProtolith, dfAltered, reference, alterationFacies, colors, ax1):
     """
     Isocon plot from Grant(1986) based on Greisen's alteration index
     input:
-    dfProtolith: dataframe with chemical data of protoliths
-    dfAltered: dataframe with chemical data of altered specimens
-    reference: reference immobile elements e.g.: ['Al2O3', 'FeO']
-    alterationFacies: dataframe column with alteration indexes 
-                    e.g.: df.alteration
-                            1
-                            2
-    colors: dictionary with plot color for each alteration
-                   e.g.: {'1':'#34ebb1', '2':'#3480eb', '3':'#e8e002'}
-    ax1: reference axis to plot the isocon diagram
-
-    output: isocon plot
-    """
+        dfProtolith: dataframe with chemical data of protoliths
+        dfAltered: dataframe with chemical data of altered specimens
+        reference: reference immobile elements e.g.: ['Al2O3', 'FeO']
+        alterationFacies: dataframe column with alteration indexes 
+                        e.g.: df.alteration
+                                1
+                                2
+        colors: dictionary with plot color for each alteration
+                       e.g.: {'1':'#34ebb1', '2':'#3480eb', '3':'#e8e002'}
+        ax1: reference axis to plot the isocon diagram
+        
+        output: isocon plot
+        """
     for txt in alterationFacies.unique():
         x = dfProtolith[reference].mean() #Protolith
         y = dfAltered[reference][alterationFacies==txt].mean() #Altered
@@ -222,9 +222,9 @@ def isocon(dfProtolith, dfAltered, reference, alterationFacies, colors, ax1):
         #linear regression through the origin
         #m, b = np.polyfit(x, y, 1)
         A = np.vstack([x, np.ones(len(x))]).T
-        m, b = np.linalg.lstsq(A, y, rcond=None)[0]
+        m, b = np.linalg.lstsq(A, y)[0]
         
-        ax1.plot(x, m*x + b, c = col)
+        ax1.plot(x, m*x, c = col)
         ax1.scatter(x, y, s=4, marker = "D",
                     c='k') # 
         
@@ -235,7 +235,8 @@ def isocon(dfProtolith, dfAltered, reference, alterationFacies, colors, ax1):
             print(elmnt)
             if elmnt not in reference:
                 ax1.scatter(x_m[elmnt], m*y_m[elmnt], s=6, c = col, marker = "o")
-                ax1.annotate(elmnt, (x_m[elmnt], m*y_m[elmnt]), fontsize = 10)
+                ax1.annotate(elmnt, (x_m[elmnt], m*y_m[elmnt]), fontsize = 10,
+                             c = col)
         
     
     ax1.set_ylabel('Altered', fontsize = 12)
