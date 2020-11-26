@@ -1,0 +1,229 @@
+#-----------------------------------------------------------------------------
+#Chemical map phase classification
+#-----------------------------------------------------------------------------
+def loadMaps(inpath):
+    """
+    inpath is th path to a file containing 16bit tiff images of 
+    Fe, K, Al, Ca and Mg
+    
+    returns a dataframe with each element as a column and the shape 
+    of the images
+    """
+    #Fe
+    ipath=os.path.join(inpath+"\\Fe.tif")
+    img = cv2.imread(ipath,-1) # load an imagem MUST BE GRAYSCALE 16bit
+    img = cv2.GaussianBlur(img,(kernel_size, kernel_size), x_sigma)
+    # reshape the image to a 2D array of pixels and 1 greyscale value
+    pixels_value = img.reshape((-1, 1))
+    pixels = np.append(pixels,pixels_value,axis=1)
+    print('Fe')
+    
+    #K
+    ipath=os.path.join(inpath+"\\K.tif")
+    img = cv2.imread(ipath,-1) # load an imagem MUST BE GRAYSCALE 16bit
+    img = cv2.GaussianBlur(img,(kernel_size, kernel_size), x_sigma)
+    # reshape the image to a 2D array of pixels and 1 greyscale value
+    pixels_value = img.reshape((-1, 1))
+    pixels = np.append(pixels,pixels_value,axis=1)
+    print('K')
+    
+    #Al
+    ipath=os.path.join(inpath+"\\Al.tif")
+    img = cv2.imread(ipath,-1) # load an imagem MUST BE GRAYSCALE 16bit
+    img = cv2.GaussianBlur(img,(kernel_size, kernel_size), x_sigma)
+    # reshape the image to a 2D array of pixels and 1 greyscale value
+    pixels_value = img.reshape((-1, 1))
+    pixels = np.append(pixels,pixels_value,axis=1)
+    print('Al')
+    
+    #Ca
+    ipath=os.path.join(inpath+"\\Ca.tif")
+    img = cv2.imread(ipath,-1) # load an imagem MUST BE GRAYSCALE 16bit
+    img = cv2.GaussianBlur(img,(kernel_size, kernel_size), x_sigma)
+    # reshape the image to a 2D array of pixels and 1 greyscale value
+    pixels_value = img.reshape((-1, 1))
+    pixels = np.append(pixels,pixels_value,axis=1)
+    print('Ca')
+    
+    #Mg
+    ipath=os.path.join(inpath+"\\Mg.tif")
+    img = cv2.imread(ipath,-1) # load an imagem MUST BE GRAYSCALE 16bit
+    img = cv2.GaussianBlur(img,(kernel_size, kernel_size), x_sigma)
+    # reshape the image to a 2D array of pixels and 1 greyscale value
+    pixels_value = img.reshape((-1, 1))
+    pixels = np.append(pixels,pixels_value,axis=1)
+    print('Mg')
+    
+    pixels = np.delete(pixels, 0,1)
+    element = ['Fe','K','Al','Ca','Mg']
+    df = pd.DataFrame(pixels, columns=element)
+    x,y = img.shape
+    return(df, x, y)
+
+def rgb(r, g, b, x, y):
+    """
+    r,g,b are channels for red, green, blue from a dataframe column
+    x, y is the shape of the input png
+    """
+    # Plot RGB composite image with Fe-K-Al channels
+    
+    r=array(df.Fe)
+    g=array(df.K)
+    b=array(df.Al)
+    
+    r=(r-min(r))/max(r)*255
+    g=(g-min(g))/max(g)*255
+    b=(b-min(b))/max(b)*255
+
+
+    #
+    rgb = np.dstack((r.tolist(), g.tolist(), b.tolist()))
+    rgb = rgb.reshape(x,y,3)
+    return(rgb)
+
+def phaseClassification(df, n):
+    
+    #-----------------------------------------------------------------------------
+    # Stretch each channel individually to the full 16 bit pixel space 0-65536
+    #-----------------------------------------------------------------------------
+    close('all')
+    DF = df
+    DF.Fe=(DF.Fe-min(DF.Fe))/max(DF.Fe)*65536
+    DF.K=(DF.K-min(DF.K))/max(DF.K)*65536
+    DF.Al=(DF.Al-min(DF.Al))/max(DF.Al)*65536
+    DF.Ca=(DF.Ca-min(DF.Ca))/max(DF.Ca)*65536
+    DF.Mg=(DF.Mg-min(DF.Mg))/max(DF.Mg)*65536
+    
+    
+    #-----------------------------------------------------------------------------
+    # Try K-Means with SciKit
+    #-----------------------------------------------------------------------------
+    #DF = DF.drop(columns='Mg')
+    #Selection = Selection.drop(columns='Mg')
+    #
+    close('all')
+    n=10              #init="k-means++"   n_init=10,
+    kmeans = KMeans(init="k-means++",n_clusters=n,n_init=10, max_iter=1000,random_state=300)
+    kmeans.fit(DF)
+    centers=(kmeans.cluster_centers_)
+    return(centers)
+
+def segmentPhase(df, centers, kwarg, Minerals):
+    if 'rgb' in kwarg:
+        # OPTION 1: Pick colour from composite FKAC
+        df_centers = pd.DataFrame(centers, columns=DF.columns)                                                                              
+
+        r=array(df_centers.Fe)
+        g=array(df_centers.K)
+        b=array(df_centers.Al)
+        
+        r=(r-min(r))/max(r)*255
+        g=(g-min(g))/max(g)*255
+        b=(b-min(b))/max(b)*255
+        
+        rgb2 = np.dstack((r.tolist(), g.tolist(), b.tolist()))
+        rgb2=np.uint8(rgb2)
+        
+        rgb2=rgb2.reshape(n,3)
+        df_centers.insert(0,'Colors', rgb2.tolist())
+        
+        labels = kmeans.labels_.flatten()
+        segmented_image = rgb2[labels]
+    elif 'list' in kwarg:
+        #-----------------------------------------------------------------------------
+        # OPTION 2: Add mineral names to dataframe and use custom colours
+        #-----------------------------------------------------------------------------
+        df_centers = pd.DataFrame(centers, columns=DF.columns)
+
+        # #            0     1    2    3    4     5     6     7    8     9
+        # Minerals = ['Qz','Ksp','Fsp','Ksp','Fsp','Qz','Fsp','Qz', 'Qz', 'Ms']
+
+
+        # Assign RGB values to centers with Fe-K-Al channels using a dictionary
+        Dict =  {'Qz':  [0,0,0],
+                 'Fsp': [42, 60, 154], # [11,18,189], [42, 60, 154]
+                 'Ksp': [52,147,84],    #[0,216,105]
+                 'Ms' : [87, 229, 168], #[153,255,255], [72, 193, 159]
+                 'Bo' : [198,120,28],
+                 'Mag': [255,0,0],
+                 'Cc' : [180,199,27],
+                 'Ep' : [175, 25, 86],
+                 'Chl': [108, 27, 51],
+                 'Amp': [178,67,123]
+                 }
+
+        #Match the dictionnary with the mineral names given the number of phases
+        Minerals = Minerals[0:n]
+        Colors = []
+        for i in range(n):
+            Colors.append(Dict[Minerals[i]])
+
+        #Attribute mineral names and colours to cluster centers:
+        df_centers.insert(0,'Minerals', Minerals)
+        df_centers.insert(0,'Colors', Colors)
+        
+        rgb2 = Colors
+        rgb2 = np.uint8(rgb2)
+        labels = kmeans.labels_.flatten()
+        segmented_image = rgb2[labels]
+    return(segmented_image, labels)
+
+def combineDuplicates(labels, Minerals):
+    #-----------------------------------------------------------------------------
+    # Find and combine duplicates:
+    #-----------------------------------------------------------------------------
+    ind = []
+    boa=[]
+    for i, item in enumerate(Minerals[0:n]):
+        if item not in boa:
+            boa.append(item)
+            for j in range(i,n):
+                if (Minerals[j] == item) & (i != j):
+                    ind.append([i,j])
+    label_old = labels
+    for n, k in enumerate(ind):
+        i = k[0]
+        j = k[1]
+        labels[labels==j] = i
+    return(labels)
+
+def phaseMaps(labels, Minerals, outpath2, ID)
+    #-----------------------------------------------------------------------------
+    # Mineral Maps
+    #-----------------------------------------------------------------------------
+    #Create a black image
+    for n, i in enumerate(unique(labels)):
+        print(Minerals[i])
+        close('all')
+        cluster=i
+        mask = np.zeros([x*y,3], dtype=object)
+        # convert to the shape of a vector of pixel values
+        print(mask.shape)
+        mask[labels == cluster,:] =[1,1,1]
+        # convert back to original shape
+        mask = mask.reshape([x,y,3])
+        
+        # plt.imshow(float32(mask))
+        # plt.show()
+        # plt.axis('off')
+    
+        ipath=os.path.join(outpath2+"\\"+str(ID)+"_" + Minerals[i]+".png")
+        plt.imsave(ipath, float32(mask), format = 'png')
+
+def phaseModes(labels, Minerals, outpath, ID)
+    #-----------------------------------------------------------------------------
+    # Now calculate modal proportions and export to CSV
+    #-----------------------------------------------------------------------------
+    #df_minerals=DataFrame(mins)
+    modes = []
+    min3ral = []
+    for n, i in enumerate(unique(labels)):
+        sum(labels==i)/(x*y)
+        modes.append(sum(labels==i)/(x*y)*100)
+        min3ral.append(Minerals[i])
+    modes=np.array(modes)
+    df_minerals=pd.DataFrame(modes.reshape(-1, len(modes)), columns = min3ral)
+    
+    ipath=os.path.join(outpath+"\\"+str(ID)+"ModalProportions.csv")
+    df_minerals.to_csv(ipath) 
+    return(df_minerals)     
