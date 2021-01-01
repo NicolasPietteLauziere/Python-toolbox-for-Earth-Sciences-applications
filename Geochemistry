@@ -7,9 +7,40 @@ import numpy as np
 import matplotlib.lines as mlines
 import matplotlib.patches as patches
 from sklearn.linear_model import LinearRegression
-#-----------------------------------------------------------------------------
-#Whole rock chemistry
-#-----------------------------------------------------------------------------
+plt.rcParams.update({'font.size': 10})
+plt.rcParams.update({'font.sans-serif': 'Arial'})
+
+outpath = 'C:\\Users\\Nicolas\\Documents\\PhD_8\\PKSZ\\Figures'
+#Import WR chemistry by White et al. (2002)
+ipath = "C:\\Users\\Nicolas\\Documents\\PhD_8\\PKSZ\\Figures\\WR_White_AKFcoord.csv"
+dfW = pd.read_csv(ipath, index_col=0)
+
+#Import WR chemistry from PKSZ
+ipath = "C:\\Users\\Nicolas\\Documents\\PhD_8\\PKSZ\\Figures\\WR_compilation.csv"
+df = pd.read_csv(ipath, index_col=0)
+
+#Cleanup
+dfW = dfW.filter(items=['SiO2', 'TiO2', 'Al2O3', 'Fe2O3', 'MnO', 'MgO', 'CaO',
+                        'Na2O', 'K2O','P2O5','Pluton'
+                        ])
+
+df = df.filter(items=['SiO2', 'TiO2', 'Al2O3', 'FeO', 'MnO', 'MgO', 'CaO', 
+                      'Na2O', 'K2O','P2O5', 'Specimen',  'Unit'
+                      ,'MetZone'
+                      ])
+df = df[df.Unit == 'A'] # Make sure all the data is from the Pocologan Igneous suite
+df = df.set_index('Specimen')
+df = df.drop(columns = 'Unit')
+
+df['MetZone'] = df.MetZone.str.slice(stop=1)
+
+df1 = df[df.MetZone == '1']
+df1 = df1.drop(columns = 'MetZone')
+df2 = df[df.MetZone == '2']
+df2 = df2.drop(columns = 'MetZone')
+df3 = df[df.MetZone == '3']
+df3 = df3.drop(columns = 'MetZone')
+#
 def weigth2molar(df):
     """
     Calculate whole rock molar % from oxide wt%. 
@@ -33,22 +64,22 @@ def weigth2molar(df):
     wO = 15.999
     #Create a new dataframe called DF
     DF = df.filter(items=['Specimen'])
-    DF['Si'] = 0.01*df.SiO2/(wSi+2*wO)
-    DF['Ti'] = 0.01*df.TiO2/(wTi+2*wO)
-    DF['Al'] = 0.01*df.Al2O3/(2*wAl+3*wO)
+    DF['Si'] = (df.SiO2*wSi/(wSi+2*wO))/wSi
+    DF['Ti'] = (df.TiO2*wTi/(wTi+2*wO))/wTi
+    DF['Al'] = (df.Al2O3*2*wAl/(2*wAl+3*wO))/wAl
     if 'FeO' in df.columns:
-        DF['Fe'] = 0.01*df.FeO/(wFe+wO)
+        DF['Fe'] = (df.FeO*wFe/(wFe+wO))/wFe
     elif 'Fe2O3' in df.columns:
-        DF['Fe'] = 0.01*df.Fe2O3/(2*wFe+3*wO)
-    elif 'Fe2O3' and 'FeO' in df.columns:
-        DF['FeIII'] = 0.01*df.Fe2O3/(2*wFe+3*wO)
-        DF['FeII'] = 0.01*df.FeO/(wFe+wO)
-    DF['Mn'] = 0.01*df.MnO/(wMn+wO)
-    DF['Mg'] = 0.01*df.MgO/(wMg+wO)
-    DF['Ca'] = 0.01*df.CaO/(wCa+wO)
-    DF['Na'] = 0.01*df.Na2O/(2*wNa+wO)
-    DF['K1'] = 0.01*df.K2O/(2*wK+wO)
-    DF['P1'] = 0.01*df.P2O5/(2*wP+5*wO)
+        DF['Fe'] = (df.Fe2O3*2*wFe/(2*wFe+3*wO))/wFe
+    elif 'Fe2O3'in df.columns and 'FeO' in df.columns:
+        DF['FeIII'] = (df.Fe2O3*2*wFe/(2*wFe+3*wO))/wFe
+        DF['FeII'] = (df.FeO*wFe/(wFe+wO))/wFe
+    DF['Mn'] = (df.MnO*wMn/(wMn+wO))/wMn
+    DF['Mg'] = (df.MgO*wMg/(wMg+wO))/wMg
+    DF['Ca'] = (df.CaO*wCa/(wCa+wO))/wCa
+    DF['Na'] = (df.Na2O*2*wNa/(2*wNa+wO))/wNa
+    DF['K'] = (df.K2O*2*wK/(2*wK+wO))/wK
+    DF['P'] = (df.P2O5*2*wP/(2*wP+5*wO))/wP
     
     sum = DF.sum(axis=1)
     
@@ -60,11 +91,12 @@ def weigth2molar(df):
     DF['Mg'] = DF.Mg/sum*100
     DF['Ca'] = DF.Ca/sum*100
     DF['Na'] = DF.Na/sum*100
-    DF['K'] = DF.K1/sum*100
-    DF['P'] = DF.P1/sum*100
-    if 'Fe2O3' and 'FeO' in df.columns:
+    DF['K'] = DF.K/sum*100
+    DF['P'] = DF.P/sum*100
+    if 'Fe2O3' in df.columns and 'FeO' in df.columns:
         DF = DF.filter(items=['Si', 'Ti', 'Al', 'FeII','FeIII', 'Mn', 'Mg', 'Ca', 
                           'Na', 'K', 'P'])
+        print('both')
     else:
         DF = DF.filter(items=['Si', 'Ti', 'Al', 'Fe','Mn', 'Mg', 'Ca', 
                           'Na', 'K', 'P'])
@@ -95,22 +127,22 @@ def molar2weight(df, kwarg):
     wO = 15.999
     DF = df.filter(items=['Specimen'])
 
-    DF['SiO2'] = 0.01*df.Si*(wSi+2*wO)
-    DF['TiO2'] = 0.01*df.Ti*(wTi+2*wO)
-    DF['Al2O3'] = 0.01*df.Al*(2*wAl+3*wO)
+    DF['SiO2'] = df.Si*wSi/(wSi/(wSi+2*wO))
+    DF['TiO2'] = df.Ti*wTi/(wTi/(wTi+2*wO))
+    DF['Al2O3'] = df.Al*wAl/(2*wAl/(2*wAl+3*wO))
     if 'FeII' in kwarg:
-        DF['FeO'] = 0.01*df.Fe*(wFe+wO)
+        DF['FeO'] = df.Fe*wFe/(wFe/(wFe+wO))
     elif 'FeIII' in kwarg:
-        DF['Fe2O3'] = 0.01*df.Fe*(2*wFe+3*wO)
+        DF['Fe2O3'] = df.Fe*wFe/(2*wFe/(2*wFe+3*wO))
     elif 'both' in kwarg:
-        DF['Fe2O3'] = 0.01*df.FeIII*(2*wFe+3*wO)
-        DF['FeO'] = 0.01*df.FeII*(wFe+wO)
-    DF['MnO'] = 0.01*df.Mn*(wMn+wO)
-    DF['MgO'] = 0.01*df.Mg*(wMg+wO)
-    DF['CaO'] = 0.01*df.Ca*(wCa+wO)
-    DF['Na2O'] = 0.01*df.Na*(2*wNa+wO)
-    DF['K2O'] = 0.01*df.K*(2*wK+wO)
-    DF['P2O5'] = 0.01*df.P*(2*wP+5*wO)
+        DF['Fe2O3'] = df.FeIII*wFe/(2*wFe/(2*wFe+3*wO))
+        DF['FeO'] = df.FeII*wFe/(wFe/(wFe+wO))
+    DF['MnO'] = df.Mn*wMn/(wMn/(wMn+wO))
+    DF['MgO'] = df.Mg*wMg/(wMg/(wMg+wO))
+    DF['CaO'] = df.Ca*wCa/(wCa/(wCa+wO))
+    DF['Na2O'] = df.Na*wNa/(2*wNa/(2*wNa+wO))
+    DF['K2O'] = df.K*wK/(2*wK/(2*wK+wO))
+    DF['P2O5'] = df.P*wP/(2*wP/(2*wP+5*wO))
     
     sum = DF.sum(axis=1)
     
@@ -188,11 +220,10 @@ def CCPI(df):
         ccpi = 100*(df.MgO + df.FeO) / (df.MgO + df.FeO + df.Na2O + df.K2O)
     elif 'Fe2O3' in df.columns: 
         ccpi = 100*(df.MgO + df.Fe2O3) / (df.MgO + df.Fe2O3 + df.Na2O + df.K2O)
-    elif 'Fe2O3' and 'FeO' in df.columns:
+    elif 'Fe2O3'in df.columns and 'FeO' in df.columns:
         ccpi = 100*(df.MgO+ df.FeO + df.Fe2O3) / (df.MgO+ df.FeO + df.Fe2O3 + 
                                                   df.Na2O + df.K2O)
     return(ccpi)
-
 
 def isocon(dfProtolith, dfAltered, reference, alterationFacies, colors, ax1):
     """
@@ -242,3 +273,96 @@ def isocon(dfProtolith, dfAltered, reference, alterationFacies, colors, ax1):
     ax1.set_ylabel('Altered', fontsize = 12)
     ax1.set_xlabel('Protolith', fontsize = 12) #, fontsize=18
     return(LinearRegression)
+    
+def AIOCG(df):
+    """
+
+    Parameters
+    ----------
+    df : Whole rock chemitry molar%
+        e.g.
+        df.Fe df.Ca etc
+    Returns
+    X,Y coordinates for AIOCG diagram of Montreuil et al.(2013)
+    -------
+    """
+    x = (2*df.Ca+5*df.Fe+2*df.Mn)/(2*df.Ca+5*df.Fe+2*df.Mn+df.Mg+df.Si)
+    y = df.K/(df.K+df.Na+0.5*df.Ca)
+    return(x,y)
+
+def AIOCG_Labels(df, kwarg):
+    """
+    input:  df: dataframe with whole rock chemistry in molar % 
+            kwarg: type of piechart
+                krwarg = 'Mg' for a Na-Ca-Fe-K-Mg label
+                kwarg = 'SiAl' for a Na-Ca-Fe-K-(Si+Al)/10 label
+    ouput: DF with one column per pie chart component. Each specimen gets an
+            array with coordinates per columns.
+    """
+    if 'Mg' in kwarg:
+        df = df.filter(items=['Na', 'Ca', 'Fe', 'K', 'Mg'])
+        sum = df.sum(axis=1)
+        df = df.divide(sum, axis='index') #normalize on Na+Ca+Fe+F+Mg
+        df = df.multiply(100, axis='index') #normalize on Na+Ca+Fe+F+Mg
+        x = []
+        y = []
+        xy = []
+        DF = df
+        df = df.astype('object')
+        for i in range(len(df)):
+            y0 = 0
+            print(i)
+            for r1 in df.columns:
+                y = y0 + df.iloc[i][r1]
+                df.iloc[i][r1] = [[0, y0],[0, y]]
+                y0 = y
+    elif 'SiAl' in kwarg:
+        df['SiAl']= (df.Si+df.Al)/10
+        df = df.filter(items=['Na', 'Ca', 'Fe', 'K', 'SiAl'])    
+        sum = df.sum(axis=1)
+        df = df.divide(sum, axis='index') #normalize on Na+Ca+Fe+F+Mg
+        df = df.multiply(100, axis='index') #normalize on Na+Ca+Fe+F+Mg
+        x = []
+        y = []
+        xy = []
+        DF = df
+        df = df.astype('object')
+        for i in range(len(df)):
+            y0 = 0
+            print(i)
+            for r1 in df.columns:
+                y = y0 + df.iloc[i][r1]
+                df.iloc[i][r1] = [[0, y0],[0, y]]
+                y0 = y
+    return(df, DF)
+
+def plotAIOCG(df_molar, kwarg, ipath, ax):
+    img = plt.imread(ipath)
+    sy, sx, t = img.shape
+    
+    x, y = AIOCG(df_molar)
+    t, DF = AIOCG_Labels(df_molar, kwarg)
+    # Change x,y coordinates to match the dimension of the image
+    x = x*sx
+    y = sy - (y*sy)
+    size = 5000
+    mw=10
+
+    ax.imshow(img)
+
+    for i in range(len(df_molar)):
+        ax.scatter(x[i], y[i], marker=t.iloc[i].Na, 
+                s=size, linewidth = mw, facecolor='hotpink')
+        ax.scatter(x[i], y[i], marker=t.iloc[i].Ca, 
+                s=size, linewidth = mw, facecolor='green')
+        ax.scatter(x[i], y[i], marker=t.iloc[i].Fe, 
+                s=size, linewidth = mw, facecolor='k')
+        ax.scatter(x[i], y[i], linewidth = mw, marker=t.iloc[i].K, 
+                s=size, facecolor='red')
+        if 'Mg' in kwarg:
+            ax.scatter(x[i], y[i], marker=t.iloc[i].Mg, 
+                       s=size, linewidth = mw, facecolor='lime')
+        elif 'SiAl' in kwarg:
+            ax.scatter(x[i], y[i], marker=t.iloc[i].SiAl, 
+                    s=size, linewidth = mw, facecolor='yellow')    
+    return(ax)
