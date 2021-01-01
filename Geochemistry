@@ -7,40 +7,7 @@ import numpy as np
 import matplotlib.lines as mlines
 import matplotlib.patches as patches
 from sklearn.linear_model import LinearRegression
-plt.rcParams.update({'font.size': 10})
-plt.rcParams.update({'font.sans-serif': 'Arial'})
 
-outpath = 'C:\\Users\\Nicolas\\Documents\\PhD_8\\PKSZ\\Figures'
-#Import WR chemistry by White et al. (2002)
-ipath = "C:\\Users\\Nicolas\\Documents\\PhD_8\\PKSZ\\Figures\\WR_White_AKFcoord.csv"
-dfW = pd.read_csv(ipath, index_col=0)
-
-#Import WR chemistry from PKSZ
-ipath = "C:\\Users\\Nicolas\\Documents\\PhD_8\\PKSZ\\Figures\\WR_compilation.csv"
-df = pd.read_csv(ipath, index_col=0)
-
-#Cleanup
-dfW = dfW.filter(items=['SiO2', 'TiO2', 'Al2O3', 'Fe2O3', 'MnO', 'MgO', 'CaO',
-                        'Na2O', 'K2O','P2O5','Pluton'
-                        ])
-
-df = df.filter(items=['SiO2', 'TiO2', 'Al2O3', 'FeO', 'MnO', 'MgO', 'CaO', 
-                      'Na2O', 'K2O','P2O5', 'Specimen',  'Unit'
-                      ,'MetZone'
-                      ])
-df = df[df.Unit == 'A'] # Make sure all the data is from the Pocologan Igneous suite
-df = df.set_index('Specimen')
-df = df.drop(columns = 'Unit')
-
-df['MetZone'] = df.MetZone.str.slice(stop=1)
-
-df1 = df[df.MetZone == '1']
-df1 = df1.drop(columns = 'MetZone')
-df2 = df[df.MetZone == '2']
-df2 = df2.drop(columns = 'MetZone')
-df3 = df[df.MetZone == '3']
-df3 = df3.drop(columns = 'MetZone')
-#
 def weigth2molar(df):
     """
     Calculate whole rock molar % from oxide wt%. 
