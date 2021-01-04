@@ -133,6 +133,12 @@ def molar2weight(df, kwarg):
     return (DF)
 
 def massChange(dfProtolith, dfAltered, reference):
+    """
+    Mass change calculation based on the bootstrap method of Ague, J., and van 
+    Haren, L., 1995. Assessing Metasomatic Mass and Volume Change Using the Bootstrap, 
+    with Application to Deep Crusta Hydrothermal Alteration of Marble, Economic 
+    Geology, v.91, pp. 1169-1182.
+    """
     dfW = dfProtolith
     df = dfAltered
     gm = []
@@ -243,7 +249,11 @@ def isocon(dfProtolith, dfAltered, reference, alterationFacies, colors, ax1):
     
 def AIOCG(df):
     """
-
+    Based on the AIOCG plot of:
+    Montreuil, J.-F., Corriveau, L., Grunsky, E.C. (2013) Compositional data 
+    analysis of hydrothermal alteration in IOCG systems, Great Bear magmatic zone, 
+    Canada: to each alteration type its own geochemical signature. Geochemistry: 
+    Exploration, Environment, Analysis 13, 229–247.
     Parameters
     ----------
     df : Whole rock chemitry molar%
@@ -259,6 +269,14 @@ def AIOCG(df):
 
 def AIOCG_Labels(df, kwarg):
     """
+    Based on:
+    Blein, O., Corriveau, L., Montreuil, J.-F., Ehrig, K., Fabris, A., Reid, A., 
+    and Pal, D. (in prep) Geochemical signatures of metasomatic ore systems hosting 
+    IOCG, IOA, albitite-hosted uranium and affiliated deposits: a tool for process 
+    studies and mineral exploration, in Corriveau, L., Potter, E.G. and Mumin, 
+    A.H., eds., Mineral systems with iron oxide copper-gold (IOCG) and affiliated 
+    deposits: Geological Association of Canada, Special Paper 52, p. XXX.
+
     input:  df: dataframe with whole rock chemistry in molar % 
             kwarg: type of piechart
                 krwarg = 'Mg' for a Na-Ca-Fe-K-Mg label
