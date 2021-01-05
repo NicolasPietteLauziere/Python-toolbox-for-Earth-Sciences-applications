@@ -324,15 +324,25 @@ def AIOCG_Labels(df, kwarg):
 def plotAIOCG(df_molar, kwarg, ipath, ax):
     img = plt.imread(ipath)
     sy, sx, t = img.shape
+    #adjust plotting space for margin
+    #           left     right
+    sx = sx - 159.412 - (sx - 1288.58)
+    #           top      bottom
+    sy = sy - 29.3133 - (sy - 781.424)
     
     x, y = AIOCG(df_molar)
     t, DF = AIOCG_Labels(df_molar, kwarg)
+    
     # Change x,y coordinates to match the dimension of the image
     x = x*sx
-    y = sy - (y*sy)
+    y = sy - (y*sy) #Origin at the upper left of the image
+    
+    # Adjust x,y for the image margins
+    x = x+159.412
+    y = y+29.3133
+    
     size = 5000
     mw=10
-
     ax.imshow(img)
 
     for i in range(len(df_molar)):
