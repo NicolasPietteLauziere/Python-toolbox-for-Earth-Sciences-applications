@@ -8,6 +8,7 @@ import matplotlib.lines as mlines
 import matplotlib.patches as patches
 from sklearn.linear_model import LinearRegression
 
+#%% Functions
 def weigth2molar(df):
     """
     Calculate whole rock molar % from oxide wt%. 
@@ -31,6 +32,11 @@ def weigth2molar(df):
     wO = 15.999
     #Create a new dataframe called DF
     DF = df.filter(items=['Specimen'])
+    # DF=pd.DataFrame()
+    # df = df.filter(items=['SiO2', 'TiO2', 'Al2O3', 'FeO', 'Fe2O3', 'MnO',
+    #                       'MgO', 'CaO','Na2O','K2O','P2O5'])
+    # df =df.astype(float)    
+    
     DF['Si'] = (df.SiO2*wSi/(wSi+2*wO))/wSi
     DF['Ti'] = (df.TiO2*wTi/(wTi+2*wO))/wTi
     DF['Al'] = (df.Al2O3*2*wAl/(2*wAl+3*wO))/wAl
@@ -92,8 +98,9 @@ def molar2weight(df, kwarg):
     wK = 39.098
     wP = 30.974
     wO = 15.999
-    DF = df.filter(items=['Specimen'])
 
+    DF = df.filter(items=['Specimen'])
+    
     DF['SiO2'] = df.Si*wSi/(wSi/(wSi+2*wO))
     DF['TiO2'] = df.Ti*wTi/(wTi/(wTi+2*wO))
     DF['Al2O3'] = df.Al*wAl/(2*wAl/(2*wAl+3*wO))
@@ -132,128 +139,9 @@ def molar2weight(df, kwarg):
     
     return (DF)
 
-def massChange(dfProtolith, dfAltered, reference):
-    """
-    Mass change calculation based on the bootstrap method of Ague, J., and van 
-    Haren, L., 1995. Assessing Metasomatic Mass and Volume Change Using the Bootstrap, 
-    with Application to Deep Crusta Hydrothermal Alteration of Marble, Economic 
-    Geology, v.91, pp. 1169-1182.
-    """
-    dfW = dfProtolith
-    df = dfAltered
-    gm = []
-    gm_a = []
-    for i in df.columns:
-        print(i)
-        gm.append(gmean(dfW[i]+0.001)-len(dfW[i])*0.001)   #Geometric mean corrected for nul values
-        gm_a.append(gmean(df[i]+0.001)-len(df[i])*0.001)    
-        
-    AML = gm / (sum(gm)*0.01)
-    AML_a = gm_a / (sum(gm_a)*0.01) 
-    
-    # #Build a dataframe with the AMLs
-    # aml = pd.DataFrame([AML, AML_a], 
-    #                    index = ['protolith','altered'], 
-    #                    columns = df.columns)
-    # rm = []
-    # for i in aml.columns:
-    #     rm.append(aml[i][0] / aml[i][1])
-    if len(reference) > 1:
-        composite= dfW[reference].sum(axis = 1)
-        composite_a = df[reference].sum(axis = 1)
-        
-        gmComp = gmean(composite+0.001)-len(composite)*0.001
-        gmComp_a = gmean(composite_a+0.001)-len(composite_a)*0.001
-        
-        amlComp = gmComp / (sum(gm)*0.01)
-        amlComp_a = gmComp_a / (sum(gm_a)*0.01)
-        
-        change = amlComp/amlComp_a
-    if len(reference) == 1:
-        stable = df.columns.tolist().index(reference)
-        change = AML[stable] / AML_a[stable]
-    
-    T=[]
-    for i in range(len(AML)):
-        # if i == stable:
-        #     T.append(0)
-        # else:
-        T.append(100*(change*AML_a[i] / AML[i] - 1))
-    
-    return(T)  
-
-def AI(df):
-    #Ishikawa alteration index
-    ai = 100*(df.K2O + df.MgO) / (df.K2O + df.MgO + df.Na2O + df.CaO)
-    return(ai)
-
-def CCPI(df):
-    #Chlorite-carbonate-pyrite index (CCPI )
-    if 'FeO' in df.columns:
-        ccpi = 100*(df.MgO + df.FeO) / (df.MgO + df.FeO + df.Na2O + df.K2O)
-    elif 'Fe2O3' in df.columns: 
-        ccpi = 100*(df.MgO + df.Fe2O3) / (df.MgO + df.Fe2O3 + df.Na2O + df.K2O)
-    elif 'Fe2O3'in df.columns and 'FeO' in df.columns:
-        ccpi = 100*(df.MgO+ df.FeO + df.Fe2O3) / (df.MgO+ df.FeO + df.Fe2O3 + 
-                                                  df.Na2O + df.K2O)
-    return(ccpi)
-
-def isocon(dfProtolith, dfAltered, reference, alterationFacies, colors, ax1):
-    """
-    Isocon plot from Grant(1986) based on Greisen's alteration index
-    input:
-        dfProtolith: dataframe with chemical data of protoliths
-        dfAltered: dataframe with chemical data of altered specimens
-        reference: reference immobile elements e.g.: ['Al2O3', 'FeO']
-        alterationFacies: dataframe column with alteration indexes 
-                        e.g.: df.alteration
-                                1
-                                2
-        colors: dictionary with plot color for each alteration
-                       e.g.: {'1':'#34ebb1', '2':'#3480eb', '3':'#e8e002'}
-        ax1: reference axis to plot the isocon diagram
-        
-        output: isocon plot
-        """
-    for txt in alterationFacies.unique():
-        x = dfProtolith[reference].mean() #Protolith
-        y = dfAltered[reference][alterationFacies==txt].mean() #Altered
-        col = colors[txt]
-        
-        x_m = dfProtolith.mean()
-        y_m = dfAltered[alterationFacies==txt].mean()
-        
-        #linear regression through the origin
-        #m, b = np.polyfit(x, y, 1)
-        A = np.vstack([x, np.ones(len(x))]).T
-        m, b = np.linalg.lstsq(A, y)[0]
-        
-        ax1.plot(x, m*x, c = col)
-        ax1.scatter(x, y, s=4, marker = "D",
-                    c='k') # 
-        
-        for i, txt in enumerate(df[reference].columns):
-            ax1.annotate(txt, (x[i], y[i]), fontsize = 10)
-        
-        for elmnt in df.columns[0:9]:
-            print(elmnt)
-            if elmnt not in reference:
-                ax1.scatter(x_m[elmnt], m*y_m[elmnt], s=6, c = col, marker = "o")
-                ax1.annotate(elmnt, (x_m[elmnt], m*y_m[elmnt]), fontsize = 10,
-                             c = col)
-        
-    
-    ax1.set_ylabel('Altered', fontsize = 12)
-    ax1.set_xlabel('Protolith', fontsize = 12) #, fontsize=18
-    return(LinearRegression)
-    
 def AIOCG(df):
     """
-    Based on the AIOCG plot of:
-    Montreuil, J.-F., Corriveau, L., Grunsky, E.C. (2013) Compositional data 
-    analysis of hydrothermal alteration in IOCG systems, Great Bear magmatic zone, 
-    Canada: to each alteration type its own geochemical signature. Geochemistry: 
-    Exploration, Environment, Analysis 13, 229–247.
+
     Parameters
     ----------
     df : Whole rock chemitry molar%
@@ -261,6 +149,14 @@ def AIOCG(df):
         df.Fe df.Ca etc
     Returns
     X,Y coordinates for AIOCG diagram of Montreuil et al.(2013)
+    
+    Reference:
+    Montreuil J F, Corriveau L, Grunsky E C (2013). Compositional 
+            data analysis of hydrothermal alteration in IOCG systems, Great 
+            Bear magmatic zone, Canada: to each alteration type its own 
+            geochemical signature. Geochemistry: Exploration, Environment, 
+            Analysis 13:229-247.
+            doi:`<http://dx.doi.org/10.1144/geochem2011-101>`__
     -------
     """
     x = (2*df.Ca+5*df.Fe+2*df.Mn)/(2*df.Ca+5*df.Fe+2*df.Mn+df.Mg+df.Si)
@@ -269,20 +165,36 @@ def AIOCG(df):
 
 def AIOCG_Labels(df, kwarg):
     """
-    Based on:
-    Blein, O., Corriveau, L., Montreuil, J.-F., Ehrig, K., Fabris, A., Reid, A., 
-    and Pal, D. (in prep) Geochemical signatures of metasomatic ore systems hosting 
-    IOCG, IOA, albitite-hosted uranium and affiliated deposits: a tool for process 
-    studies and mineral exploration, in Corriveau, L., Potter, E.G. and Mumin, 
-    A.H., eds., Mineral systems with iron oxide copper-gold (IOCG) and affiliated 
-    deposits: Geological Association of Canada, Special Paper 52, p. XXX.
-
     input:  df: dataframe with whole rock chemistry in molar % 
-            kwarg: type of piechart
+            kwarg: type of bar code
                 krwarg = 'Mg' for a Na-Ca-Fe-K-Mg label
                 kwarg = 'SiAl' for a Na-Ca-Fe-K-(Si+Al)/10 label
     ouput: DF with one column per pie chart component. Each specimen gets an
             array with coordinates per columns.
+    
+    References:
+    Montreuil, J.-F., Corriveau, L., and Potter, E.G., 2015, Formation of 
+            albitite-hosted uranium within IOCG systems: the Southern Breccia, 
+            Great Bear magmatic zone, Northwest Territories, Canada: 
+            Mineralium Deposita, v. 50, p. 293-325.
+    
+    Montreuil, J.-F., Corriveau, L., Potter, E.G., and De Toni, A.F., 2016b, 
+            On the relation between alteration facies and metal endowment of 
+            iron oxide–alkali-altered systems, southern Great Bear magmatic 
+            zone (Canada), in Slack, J., Corriveau, L. and Hitzman, M., 
+            eds., Proterozoic iron oxide-apatite (± REE) and 
+            iron oxide-copper-gold and affiliated deposits of Southeast 
+            Missouri, USA, and the Great Bear magmatic zone, Northwest 
+            Territories, Canada: Economic Geology, v. 111, p. 2139-2168.
+    
+    Blein, O., Corriveau, L., Montreuil, J.-F., Ehrig, K., Fabris, A., 
+            Reid, A., and Pal, D., 2021, Geochemical signatures of metasomatic 
+            ore systems hosting IOCG, IOA, albite-hosted uranium and 
+            affiliated deposits: a tool for process studies and mineral 
+            exploration, in Corriveau, L., Potter, E.G. and Mumin, A.H., eds., 
+            Mineral systems with iron oxide copper-gold (IOCG) and 
+            affiliated deposits: Geological Association of Canada, 
+            Special Paper 52, p. XXX.
     """
     if 'Mg' in kwarg:
         df = df.filter(items=['Na', 'Ca', 'Fe', 'K', 'Mg'])
@@ -323,7 +235,7 @@ def AIOCG_Labels(df, kwarg):
 
 def plotAIOCG(df_molar, kwarg, ipath, ax):
     img = plt.imread(ipath)
-    sy, sx, t = img.shape
+    sy, sx, other = img.shape
     #adjust plotting space for margin
     #           left     right
     sx = sx - 159.412 - (sx - 1288.58)
